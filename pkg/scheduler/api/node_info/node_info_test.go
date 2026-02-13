@@ -1072,3 +1072,87 @@ func Test_isMigResource(t *testing.T) {
 		})
 	}
 }
+
+func TestNodeInfo_GetRequiredInitQuota(t *testing.T) {
+	tests := []struct {
+		name                   string
+		gpuFraction            string
+		gpuMemory              string
+		numDevices             string
+		memoryOfEveryGpuOnNode int64
+		expectedGPUQuota       float64
+	}{
+		{
+			name:                   "single device compute fraction",
+			gpuFraction:            "0.4",
+			memoryOfEveryGpuOnNode: 10000,
+			expectedGPUQuota:       0.4,
+		},
+		{
+			name:                   "multi-device compute fraction 2 devices",
+			gpuFraction:            "0.4",
+			numDevices:             "2",
+			memoryOfEveryGpuOnNode: 10000,
+			expectedGPUQuota:       0.8,
+		},
+		{
+			name:                   "multi-device compute fraction 3 devices",
+			gpuFraction:            "0.5",
+			numDevices:             "3",
+			memoryOfEveryGpuOnNode: 10000,
+			expectedGPUQuota:       1.5,
+		},
+		{
+			name:                   "single device memory fraction",
+			gpuMemory:              "4000",
+			memoryOfEveryGpuOnNode: 10000,
+			expectedGPUQuota:       0.4,
+		},
+		{
+			name:                   "multi-device memory fraction 2 devices",
+			gpuMemory:              "4000",
+			numDevices:             "2",
+			memoryOfEveryGpuOnNode: 10000,
+			expectedGPUQuota:       0.8,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ni := &NodeInfo{
+				Name:                   "test-node",
+				MemoryOfEveryGpuOnNode: tt.memoryOfEveryGpuOnNode,
+				GpuMemorySynced:        true,
+			}
+
+			annotations := map[string]string{
+				commonconstants.PodGroupAnnotationForPod: "pg1",
+			}
+			if tt.gpuFraction != "" {
+				annotations[commonconstants.GpuFraction] = tt.gpuFraction
+			}
+			if tt.gpuMemory != "" {
+				annotations[commonconstants.GpuMemory] = tt.gpuMemory
+			}
+			if tt.numDevices != "" {
+				annotations[commonconstants.GpuFractionsNumDevices] = tt.numDevices
+			}
+
+			task := pod_info.NewTaskInfo(&v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "p1",
+					Namespace:   "n1",
+					Annotations: annotations,
+				},
+				Spec: v1.PodSpec{
+					Containers: []v1.Container{
+						{Name: "c1"},
+					},
+				},
+			})
+
+			quota := ni.GetRequiredInitQuota(task)
+			assert.InDeltaf(t, tt.expectedGPUQuota, quota.GPU, 0.001,
+				"expected GPU quota %f, got %f", tt.expectedGPUQuota, quota.GPU)
+		})
+	}
+}
