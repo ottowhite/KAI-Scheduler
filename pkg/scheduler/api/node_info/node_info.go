@@ -703,7 +703,8 @@ func (ni *NodeInfo) GetRequiredInitQuota(pi *pod_info.PodInfo) *podgroup_info.Jo
 	if len(pi.ResReq.MigResources()) != 0 {
 		quota.GPU = pi.ResReq.GetGpusQuota()
 	} else {
-		quota.GPU = ni.getGpuMemoryFractionalOnNode(ni.GetResourceGpuMemory(pi.ResReq))
+		gpuMemory := ni.GetResourceGpuMemory(pi.ResReq)
+		quota.GPU = ni.getGpuMemoryFractionalOnNode(gpuMemory) * float64(pi.ResReq.GetNumOfGpuDevices())
 	}
 	quota.MilliCPU = pi.ResReq.Cpu()
 	quota.Memory = pi.ResReq.Memory()
